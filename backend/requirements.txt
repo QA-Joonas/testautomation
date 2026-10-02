@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+sqlalchemy
+aiosqlite
+PyJWT
+pwdlib[argon2]
+cryptography
+slowapi
