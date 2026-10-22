@@ -3,9 +3,9 @@ import sqlite3
 from pathlib import Path
 
 
-DATABASE_PATH = Path(
-    os.getenv("DATABASE_PATH", "data/testautomation.db")
-)
+BASE_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_DATABASE_PATH = BASE_DIR / "data" / "testautomation.db"
+DATABASE_PATH = Path(os.getenv("DATABASE_PATH", str(DEFAULT_DATABASE_PATH)))
 
 
 def get_connection() -> sqlite3.Connection:
@@ -18,12 +18,13 @@ def get_connection() -> sqlite3.Connection:
     )
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA journal_mode = WAL")
 
     return connection
 
 
 def init_db() -> None:
-    """Create the database tables if they do not already exist."""
+    """Create the database schema and indexes if they do not already exist."""
     with get_connection() as connection:
         connection.execute(
             """
@@ -44,4 +45,14 @@ def init_db() -> None:
                 )
             )
             """
+        )
+
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)"
         )
