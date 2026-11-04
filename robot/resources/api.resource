@@ -6,6 +6,9 @@ Library    ../keywords/user_test_keywords.py
 ${BASE_URL}                 http://localhost:8000
 ${DOCKER_CONTAINER_NAME}    testautomation-robot-api
 ${HEALTH_PATH}              /health
+${TEST_USERNAME}            ${EMPTY}
+${TEST_USER_ROLE}           ${EMPTY}
+${TRANSACTION_ID}           ${EMPTY}
 ${TRANSACTIONS_PATH}        /api/v1/transactions
 
 *** Keywords ***
