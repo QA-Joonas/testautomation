@@ -1,11 +1,11 @@
-# Project Context - Test Automation For Python API Backend
+# Project Context - Test Automation Demo API
 
 ## Purpose
 
-This project demonstrates professional API testing
-and test automation skills.
+This project demonstrates API development and automated API testing. The
+current application is a small income and expense transaction API.
 
-Backend runs in a Docker container
+The API can run in a Docker container and stores data in SQLite.
 
 ## Technologies
 
@@ -14,53 +14,38 @@ Backend runs in a Docker container
 - Pydantic
 - Docker
 - Robot Framework
-- RequestsLibrary
-- pytest
-- SQLite/PostgreSQL
+- Requests (used by the Python Robot Framework keyword library)
+- SQLite
 
 ## Architecture
 
-Robot Framework
-    ↓
-REST API
-    ↓
-FastAPI backend
-    ↓
-Database
+Robot Framework tests -> HTTP API -> FastAPI backend -> SQLite database
 
 ## Backend
 
-The backend provides REST API endpoints for:
+The backend currently provides:
 
-- authentication
-- users
-- accounts
-- expenses
+- health check
+- transaction listing, creation, retrieval, update, and deletion
+- income and expense transaction validation
 
 ## Testing
 
-Tests cover:
+Robot Framework tests are organized under `robot/`:
 
-- functional testing
-- negative testing
-- API validation
-- authentication
-- authorization
-- security testing
-- error handling
-- HTTP status codes
+- `robot/tests/` contains test suites.
+- `robot/resources/` contains shared variables and Robot Framework keywords.
+- `robot/keywords/` contains Python keyword libraries.
 
-## Security
+The current tests cover happy paths for the health endpoint and transaction
+create, list, retrieve, update, and delete operations. Each test that needs an
+existing transaction creates one during setup and removes it during teardown.
+Tests exercise the HTTP API; they do not query SQLite directly.
 
-The API must consider:
+Run the API and test suite using the instructions in `README.md`.
 
-- authentication
-- authorization
-- IDOR
-- input validation
-- SQL injection
-- rate limiting
-- information disclosure
-- secure error handling
-- secrets management
-- Docker security
+## Future scope
+
+Authentication, users, accounts, PostgreSQL support, negative/API validation
+tests, and security testing are not currently implemented. They may be added
+as the project scope expands.
