@@ -59,6 +59,8 @@ class ApiKeywords:
         return {
             "status_code": response.status_code,
             "body": response.json() if response.content else None,
+            "retry_after": response.headers.get("Retry-After"),
+            "www_authenticate": response.headers.get("WWW-Authenticate"),
         }
 
     @keyword

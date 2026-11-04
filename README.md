@@ -109,6 +109,13 @@ short-lived (15-minute) JWT bearer token. Send it as
 creation timestamp; password hashes are never returned. User passwords are
 hashed with Argon2id.
 
+Login allows two failed attempts per client IP and normalized username in a
+rolling one-hour window. Further requests for that pair receive `429` with a
+`Retry-After` header. Successful login clears the pair's recorded attempts.
+The limiter is in memory and applies per API process; its state is cleared
+when the process restarts and is not shared across multiple workers or
+replicas.
+
 The API requires `JWT_SECRET_KEY` to be configured with at least 32 random
 bytes before it will start. Keep the key private and stable across restarts so
 tokens remain verifiable. Changing the key invalidates existing tokens.

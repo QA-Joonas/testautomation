@@ -3,6 +3,7 @@
 import json
 import secrets
 import subprocess
+from typing import Any
 
 import requests
 from robot.api.deco import keyword, library
@@ -88,6 +89,71 @@ class UserTestKeywords:
                 self.container_name = None
         finally:
             BuiltIn().get_library_instance("ApiKeywords").set_api_access_token(None)
+
+    @keyword
+    def delete_current_test_user_keep_api_token(self) -> None:
+        """Delete the newest disposable user without clearing its current token."""
+        if self.container_name is None or not self.usernames:
+            raise RuntimeError("There is no current test user to delete")
+
+        self._run_user_cli(
+            self.container_name,
+            "delete",
+            self.usernames[-1],
+        )
+        self.usernames.pop()
+        if not self.usernames:
+            self.container_name = None
+
+    @keyword
+    def set_api_token_with_claims(
+        self,
+        claims: dict[str, Any],
+        tamper_signature: bool = False,
+    ) -> None:
+        """Install a test JWT without returning or logging its token value."""
+        builtin = BuiltIn()
+        container_name = builtin.get_variable_value("${DOCKER_CONTAINER_NAME}")
+        if not container_name:
+            raise RuntimeError("Docker container name must be configured")
+
+        script = """
+import json
+import sys
+import jwt
+from app.auth import get_jwt_secret
+
+claims = json.loads(sys.argv[1])
+print(jwt.encode(claims, get_jwt_secret(), algorithm="HS256"))
+"""
+        result = subprocess.run(
+            [
+                "docker",
+                "exec",
+                container_name,
+                "python",
+                "-c",
+                script,
+                json.dumps(claims, separators=(",", ":")),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Could not create authentication test token: {result.stderr.strip()}"
+            )
+
+        token = result.stdout.strip()
+        if not token:
+            raise RuntimeError("Authentication test token generation returned no token")
+        if tamper_signature:
+            header, payload, _ = token.split(".")
+            token = f"{header}.{payload}.invalidsignature"
+
+        builtin.get_library_instance("ApiKeywords").set_api_access_token(token)
 
     @staticmethod
     def _run_user_cli(

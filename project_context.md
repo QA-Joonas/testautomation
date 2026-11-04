@@ -47,7 +47,9 @@ Robot Framework tests are organized under `robot/`:
 
 The current tests cover health and transaction CRUD, unauthenticated access,
 customer/administrator permissions, and transaction isolation between
-customers. Test users and their transactions are removed during teardown.
+customers. User authentication tests cover profile access, credential
+validation, rejected JWTs, token invalidation after user deletion, and login
+throttling. Test users and their transactions are removed during teardown.
 
 There is no public registration endpoint or manual account-creation workflow.
 Only automated tests create the disposable customer and administrator
@@ -63,6 +65,10 @@ update or delete transactions or access another customer's transactions.
 Administrators can list, create, read, update, and delete transactions across
 all customers. Every transaction endpoint requires authentication; the health
 and login endpoints are public.
+
+Login is throttled after two failed attempts per client IP and normalized
+username per hour. The in-memory limiter returns `429` with `Retry-After`;
+counters are per process and reset when it restarts.
 
 Deleting a user cascades to that user's transactions.
 
