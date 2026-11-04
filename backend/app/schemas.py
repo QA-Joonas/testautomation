@@ -25,6 +25,7 @@ TransactionCategory = Literal[
 ]
 
 UserRole = Literal["user", "administrator"]
+USER_PASSWORD_MAX_LENGTH = 128
 
 
 class UserCredentials(BaseModel):
@@ -43,7 +44,7 @@ class UserCredentials(BaseModel):
     ]
     password: Annotated[
         str,
-        Field(min_length=12, max_length=128, strict=True),
+        Field(min_length=12, max_length=USER_PASSWORD_MAX_LENGTH, strict=True),
     ]
 
     @field_validator("username")
@@ -55,7 +56,10 @@ class UserCredentials(BaseModel):
 class UserLogin(UserCredentials):
     """Request schema for logging in with a username and password."""
 
-    password: Annotated[str, Field(strict=True)]
+    password: Annotated[
+        str,
+        Field(max_length=USER_PASSWORD_MAX_LENGTH, strict=True),
+    ]
 
 
 class UserResponse(BaseModel):
