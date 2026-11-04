@@ -55,7 +55,7 @@ python -m uvicorn app.main:app --reload
 | `GET` | `/api/v1/transactions/{transaction_id}` | Get a transaction | `200` |
 | `PUT` | `/api/v1/transactions/{transaction_id}` | Replace a transaction | `200` |
 | `DELETE` | `/api/v1/transactions/{transaction_id}` | Delete a transaction | `204` |
-| `POST` | `/api/v1/auth/login` | Authenticate a provisioned user | `200` |
+| `POST` | `/api/v1/auth/login` | Authenticate a test-created user | `200` |
 | `GET` | `/api/v1/users/me` | Get the authenticated user's profile | `200` |
 
 Every transaction endpoint requires a bearer token. A `user` (customer) can
@@ -88,18 +88,22 @@ invalid request data returns `422`.
 
 ## Users and authentication
 
-There is no public registration endpoint. Create accounts through the private
-provisioning CLI inside the running API container; the password is read from
-standard input, not supplied as a command-line argument:
+There is no public registration endpoint or manual account-creation workflow.
+Only automated tests create accounts, as disposable fixtures needed to
+exercise authentication and transaction authorization. Do not create user
+accounts manually through Docker commands or a CLI. The tests remove their
+accounts during teardown; deleting an account also deletes its transactions.
 
-```powershell
-docker exec -i testautomation-robot-api python -m app.users create --username alice --role user
-```
+The two roles are:
 
-The supported roles are `user` (customer) and `administrator` (bank
-administrator). Provision administrators only for trusted staff through the
-private CLI. The login endpoint accepts a JSON username and password and
-returns a short-lived (15-minute) JWT bearer token. Send it as
+- `user` (customer): can create and read their own transactions. They cannot
+  update or delete transactions, and cannot access another customer's
+  transactions.
+- `administrator` (bank administrator): can list, create, read, update, and
+  delete transactions across all customers.
+
+The login endpoint accepts a JSON username and password and returns a
+short-lived (15-minute) JWT bearer token. Send it as
 `Authorization: Bearer <token>` to access
 `/api/v1/users/me`. User responses expose only the ID, username, role, and
 creation timestamp; password hashes are never returned. User passwords are
@@ -109,12 +113,11 @@ The API requires `JWT_SECRET_KEY` to be configured with at least 32 random
 bytes before it will start. Keep the key private and stable across restarts so
 tokens remain verifiable. Changing the key invalidates existing tokens.
 
-The user and transaction tests privately create disposable customer and
-administrator accounts inside the configured Docker container, log in, and
-delete those accounts in teardown. Deleting a test user also deletes its
-transactions. The transaction tests cover unauthenticated access, customer
-permissions, administrator CRUD, and isolation between customers. Run the
-user tests explicitly:
+The user and transaction tests create disposable customer and administrator
+accounts for their test cases, log in, and delete those accounts in teardown.
+The transaction tests cover unauthenticated access, customer permissions,
+administrator CRUD, and isolation between customers. Run the user tests
+explicitly:
 
 ```powershell
 python -m robot robot/tests/users
