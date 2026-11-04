@@ -7,7 +7,8 @@ Robot Framework tests that exercise the HTTP API.
 
 - `backend/app/` contains the FastAPI application, Pydantic schemas, and SQLite
   setup.
-- `robot/tests/` contains API test cases.
+- `robot/tests/api/` contains routine API test cases.
+- `robot/tests/docker/` contains Docker tests that restart the API container.
 - `robot/resources/` contains shared Robot Framework variables and keywords.
 - `robot/keywords/` contains the Python HTTP client keyword library.
 
@@ -60,10 +61,10 @@ python -m pip install -r robot/requirements.txt
 ```
 
 With the API running at `http://localhost:8000`, run the suite from the
-repository root:
+repository root. This runs the regular API tests and does not restart Docker:
 
 ```powershell
-python -m robot robot/tests
+python -m robot robot/tests/api
 ```
 
 The current happy-path suite checks health, transaction creation, retrieval,
@@ -72,13 +73,18 @@ tests create their own transaction during test setup; test teardown removes
 transactions created by each test. The tests use the API rather than querying
 SQLite directly.
 
-The persistence test is tagged `persistence` and `docker`. It restarts the
+The persistence test is separate and must be run explicitly. It restarts the
 configured Docker container, so run it only when Docker is available and the
-container name and API URL match the running service. The default container name
-is `testautomation-robot-api`; override it when needed:
+container name and API URL match the running service:
 
 ```powershell
-python -m robot --variable DOCKER_CONTAINER_NAME:my-api-container --include persistence robot/tests
+python -m robot robot/tests/docker
+```
+
+The default container name is `testautomation-robot-api`; override it when needed:
+
+```powershell
+python -m robot --variable DOCKER_CONTAINER_NAME:my-api-container robot/tests/docker
 ```
 
 The test verifies persistence across an API container restart with the same
@@ -87,5 +93,5 @@ database volume. It does not stop or restart Docker Desktop itself.
 The base URL can be changed without editing the resource file:
 
 ```powershell
-python -m robot --variable BASE_URL:http://localhost:8000 robot/tests
+python -m robot --variable BASE_URL:http://localhost:8000 robot/tests/api
 ```
