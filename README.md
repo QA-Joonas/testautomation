@@ -55,6 +55,9 @@ python -m uvicorn app.main:app --reload
 | `GET` | `/api/v1/transactions/{transaction_id}` | Get a transaction | `200` |
 | `PUT` | `/api/v1/transactions/{transaction_id}` | Replace a transaction | `200` |
 | `DELETE` | `/api/v1/transactions/{transaction_id}` | Delete a transaction | `204` |
+| `GET` | `/api/v1/accounts/me` | Get the authenticated user's mock account and balance | `200` |
+| `GET` | `/api/v1/transfers` | List transfers sent or received by the authenticated user | `200` |
+| `POST` | `/api/v1/transfers` | Send funds to another mock account | `201` |
 | `POST` | `/api/v1/auth/login` | Authenticate a test-created user | `200` |
 | `GET` | `/api/v1/users/me` | Get the authenticated user's profile | `200` |
 
@@ -85,6 +88,34 @@ as euros for display. The API and SQLite store amounts as integer cents, with
 no floating-point conversion. The API validates the fields and whether a
 category is valid for the selected type. Missing transaction IDs return `404`;
 invalid request data returns `422`.
+
+## Mock accounts and transfers
+
+Each user is assigned a persistent, unique 12-digit account number. An
+authenticated user can retrieve their own account number and `balance_cents`
+from `GET /api/v1/accounts/me`. To send funds, submit the recipient account
+number and a positive integer-cent amount:
+
+```json
+{
+  "recipient_account_number": "012345678901",
+  "amount": 1250
+}
+```
+
+The sender is always taken from the bearer token; clients cannot choose a
+source account. A transfer is recorded separately from personal income and
+expense transactions, and debiting the sender, crediting the recipient, and
+recording the transfer happen atomically. Both participants can see it in
+`GET /api/v1/transfers`; unrelated users cannot. Transfers to an unknown
+account return `404`, self-transfers and invalid data return `422`, and
+insufficient funds return `409`.
+
+These are mock ledger accounts, not payment accounts. There is no public
+deposit endpoint: accounts begin with a zero balance, and only the private
+test-user fixture can provide an opening balance for transfer tests. Account
+numbers, balances, and transfer records persist in SQLite and survive an API
+container restart when its database volume is retained.
 
 ## Users and authentication
 
@@ -121,8 +152,9 @@ The API requires `JWT_SECRET_KEY` to be configured with at least 32 random
 bytes before it will start. Keep the key private and stable across restarts so
 tokens remain verifiable. Changing the key invalidates existing tokens.
 
-The user and transaction tests create disposable customer and administrator
-accounts for their test cases, log in, and delete those accounts in teardown.
+The user, transaction, and transfer tests create disposable customer and
+administrator accounts for their test cases, log in, and delete those accounts
+in teardown.
 The transaction tests cover unauthenticated access, customer permissions,
 administrator CRUD, and isolation between customers. Run the user tests
 explicitly:
@@ -157,10 +189,10 @@ repository root. This runs the regular API tests and does not restart Docker:
 python -m robot robot/tests/api
 ```
 
-The API suite checks health, transaction CRUD, fractional-cent validation,
-authentication requirements, customer/administrator permissions, and
-per-customer isolation. Tests make transaction requests through the HTTP API;
-test teardown removes disposable users and their transactions.
+The API suite checks health, transaction CRUD, transfers, fractional-cent
+validation, authentication requirements, customer/administrator permissions,
+and per-customer isolation. Tests make requests through the HTTP API; test
+teardown removes disposable users and their related records.
 
 The persistence test is separate and must be run explicitly. It restarts the
 configured Docker container, so run it only when Docker is available and the
@@ -176,8 +208,9 @@ The default container name is `testautomation-robot-api`; override it when neede
 python -m robot --variable DOCKER_CONTAINER_NAME:my-api-container robot/tests/docker
 ```
 
-The test verifies persistence across an API container restart with the same
-database volume. It does not stop or restart Docker Desktop itself.
+The test verifies transaction and transfer persistence across an API container
+restart with the same database volume. It does not stop or restart Docker
+Desktop itself.
 
 The base URL can be changed without editing the resource file:
 

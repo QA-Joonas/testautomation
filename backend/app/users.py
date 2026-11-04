@@ -21,6 +21,11 @@ def main() -> None:
         choices=("user", "administrator"),
         required=True,
     )
+    create_parser.add_argument(
+        "--initial-balance-cents",
+        type=int,
+        default=0,
+    )
 
     delete_parser = commands.add_parser("delete", help="remove a provisioned user")
     delete_parser.add_argument("--username", required=True)
@@ -37,6 +42,7 @@ def main() -> None:
             arguments.username,
             password,
             cast(UserRole, arguments.role),
+            arguments.initial_balance_cents,
         )
         print(json.dumps(user))
         return

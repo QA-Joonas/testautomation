@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Response, status
 from app.auth import get_current_user, get_jwt_secret, require_administrator
 from app.database import get_connection, init_db
 from app.schemas import TransactionCreate, TransactionResponse, TransactionUpdate
+from app.transfer_routes import router as transfer_router
 from app.user_routes import router as user_router
 
 
@@ -42,6 +43,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(user_router)
+app.include_router(transfer_router)
 
 
 @app.get("/health")

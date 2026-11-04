@@ -175,3 +175,58 @@ class TransactionResponse(BaseModel):
     type: TransactionType
     category: TransactionCategory
     created_at: datetime
+
+
+class AccountResponse(BaseModel):
+    """Public details for the authenticated user's mock transfer account."""
+
+    account_number: Annotated[
+        str,
+        Field(strict=True, pattern=r"^\d{12}$"),
+    ]
+    balance_cents: Annotated[int, Field(ge=0, strict=True)]
+    created_at: datetime
+
+
+class TransferCreate(BaseModel):
+    """Request schema for transferring funds to another mock account."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    recipient_account_number: Annotated[
+        str,
+        Field(strict=True, pattern=r"^\d{12}$"),
+    ]
+    amount: Annotated[
+        int,
+        Field(
+            gt=0,
+            le=10_000_000,
+            strict=True,
+            description="Transfer amount in integer cents.",
+        ),
+    ]
+
+
+class TransferResponse(BaseModel):
+    """A transfer visible to its sender and recipient."""
+
+    id: int
+    sender_account_number: Annotated[
+        str,
+        Field(strict=True, pattern=r"^\d{12}$"),
+    ]
+    recipient_account_number: Annotated[
+        str,
+        Field(strict=True, pattern=r"^\d{12}$"),
+    ]
+    amount: Annotated[
+        int,
+        Field(
+            gt=0,
+            le=10_000_000,
+            strict=True,
+            description="Transfer amount in integer cents.",
+        ),
+    ]
+    created_at: datetime

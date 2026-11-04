@@ -5,6 +5,7 @@ from typing import Any
 
 from pwdlib import PasswordHash
 
+from app.account_numbers import generate_account_number
 from app.database import get_connection
 from app.schemas import UserCredentials, UserRole
 
@@ -15,8 +16,20 @@ DUMMY_PASSWORD_HASH = PASSWORD_HASHER.hash(
 )
 
 
-def create_user(username: str, password: str, role: UserRole) -> dict[str, Any]:
-    """Privately provision a user with an Argon2id password hash."""
+def create_user(
+    username: str,
+    password: str,
+    role: UserRole,
+    initial_balance_cents: int = 0,
+) -> dict[str, Any]:
+    """Privately provision a user and their mock transfer account."""
+    if (
+        type(initial_balance_cents) is not int
+        or initial_balance_cents < 0
+        or initial_balance_cents > 10_000_000
+    ):
+        raise ValueError("Initial account balance must be between 0 and 10000000 cents")
+
     credentials = UserCredentials.model_validate(
         {"username": username, "password": password}
     )
@@ -36,6 +49,22 @@ def create_user(username: str, password: str, role: UserRole) -> dict[str, Any]:
         except sqlite3.IntegrityError as error:
             raise ValueError("Username already exists or user data is invalid") from error
 
+        while True:
+            account_number = generate_account_number()
+            existing_account = connection.execute(
+                "SELECT 1 FROM accounts WHERE account_number = ?",
+                (account_number,),
+            ).fetchone()
+            if existing_account is None:
+                break
+
+        connection.execute(
+            """
+            INSERT INTO accounts (user_id, account_number, balance_cents)
+            VALUES (?, ?, ?)
+            """,
+            (cursor.lastrowid, account_number, initial_balance_cents),
+        )
         row = connection.execute(
             """
             SELECT id, username, role, created_at

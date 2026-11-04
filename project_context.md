@@ -33,6 +33,8 @@ The backend currently provides:
 - authenticated transaction listing, creation, retrieval, update, and deletion
 - customer ownership; customers create/read their records and administrators
   have cross-customer read and write access
+- persistent 12-digit mock account numbers and balances, with atomic,
+  authenticated user-to-user transfers and participant-only transfer history
 - income and expense transaction validation
 - strict integer-cent transaction amounts in the API and SQLite database; euro
   formatting is a client-side display concern
@@ -45,20 +47,22 @@ Robot Framework tests are organized under `robot/`:
 - `robot/resources/` contains shared variables and Robot Framework keywords.
 - `robot/keywords/` contains Python keyword libraries.
 
-The current tests cover health and transaction CRUD, unauthenticated access,
-customer/administrator permissions, and transaction isolation between
-customers. User authentication tests cover profile access, credential
-validation, rejected JWTs, token invalidation after user deletion, and login
-throttling. Test users and their transactions are removed during teardown.
+The current tests cover health, transaction CRUD, mock transfers,
+unauthenticated access, customer/administrator permissions, and transaction
+isolation between customers. User authentication tests cover profile access,
+credential validation, rejected JWTs, token invalidation after user deletion,
+and login throttling. Test users and their related records are removed during
+teardown.
 
 There is no public registration endpoint or manual account-creation workflow.
 Only automated tests create the disposable customer and administrator
 accounts they need; accounts should not be created manually through Docker or
-a CLI. The user happy-path tests authenticate, verify the protected user
-profile, and remove the accounts during teardown. JWT signing secrets belong
-in ignored local environment files, never in source control. The tests are in
-`robot/tests/users/`; passwords and access tokens are kept out of Robot test
-arguments and logs.
+a CLI. Only the private test fixture can set an opening account balance; there
+is no public deposit endpoint. The user happy-path tests authenticate, verify
+the protected user profile, and remove the accounts during teardown. JWT
+signing secrets belong in ignored local environment files, never in source
+control. The tests are in `robot/tests/users/`; passwords and access tokens are
+kept out of Robot test arguments and logs.
 
 Customers (`user`) can create and read their own transactions but cannot
 update or delete transactions or access another customer's transactions.
@@ -73,7 +77,7 @@ the same database file. Successful login clears that pair's attempts; expired
 records are removed as login requests arrive. The state survives API container
 restarts when the database volume is retained.
 
-Deleting a user cascades to that user's transactions.
+Deleting a user cascades to that user's account, transfers, and transactions.
 
 Run the API and test suite using the instructions in `README.md`.
 

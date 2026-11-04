@@ -4,6 +4,8 @@ import os
 import sqlite3
 from pathlib import Path
 
+from app.account_numbers import ACCOUNT_NUMBER_LENGTH, generate_account_number
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DATABASE_PATH = BASE_DIR / "data" / "testautomation.db"
@@ -150,6 +152,81 @@ def init_db() -> None:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(attempted_at)"
             )
+
+            connection.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id)
+                        ON DELETE CASCADE,
+                    account_number TEXT NOT NULL UNIQUE
+                        CHECK (
+                            length(account_number) = {ACCOUNT_NUMBER_LENGTH}
+                            AND account_number NOT GLOB '*[^0-9]*'
+                        ),
+                    balance_cents INTEGER NOT NULL DEFAULT 0
+                        CHECK (balance_cents >= 0),
+                    created_at TEXT NOT NULL DEFAULT (
+                        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    )
+                )
+                """
+            )
+            users_without_accounts = connection.execute(
+                """
+                SELECT users.id
+                FROM users
+                LEFT JOIN accounts ON accounts.user_id = users.id
+                WHERE accounts.id IS NULL
+                """
+            ).fetchall()
+            for user in users_without_accounts:
+                while True:
+                    account_number = generate_account_number()
+                    existing = connection.execute(
+                        "SELECT 1 FROM accounts WHERE account_number = ?",
+                        (account_number,),
+                    ).fetchone()
+                    if existing is None:
+                        break
+                connection.execute(
+                    """
+                    INSERT INTO accounts (user_id, account_number)
+                    VALUES (?, ?)
+                    """,
+                    (user["id"], account_number),
+                )
+
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS transfers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sender_account_id INTEGER NOT NULL
+                        REFERENCES accounts(id) ON DELETE CASCADE,
+                    recipient_account_id INTEGER NOT NULL
+                        REFERENCES accounts(id) ON DELETE CASCADE,
+                    amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+                    created_at TEXT NOT NULL DEFAULT (
+                        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    ),
+                    CHECK (sender_account_id != recipient_account_id)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_transfers_sender_account
+                ON transfers(sender_account_id)
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_transfers_recipient_account
+                ON transfers(recipient_account_id)
+                """
+            )
+            if connection.execute("PRAGMA user_version").fetchone()[0] < 2:
+                connection.execute("PRAGMA user_version = 2")
             connection.commit()
         except Exception:
             connection.rollback()

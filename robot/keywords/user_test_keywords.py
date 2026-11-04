@@ -21,10 +21,20 @@ class UserTestKeywords:
         self.container_name: str | None = None
 
     @keyword
-    def create_and_authenticate_test_user(self, role: str) -> None:
+    def create_and_authenticate_test_user(
+        self,
+        role: str,
+        initial_balance_cents: int = 0,
+    ) -> None:
         """Create a disposable user in Docker, log in, and keep credentials out of Robot logs."""
         if role not in {"user", "administrator"}:
             raise ValueError(f"Unsupported test user role: {role}")
+        if (
+            type(initial_balance_cents) is not int
+            or initial_balance_cents < 0
+            or initial_balance_cents > 10_000_000
+        ):
+            raise ValueError("Initial test balance must be between 0 and 10000000 cents")
 
         builtin = BuiltIn()
         container_name = builtin.get_variable_value("${DOCKER_CONTAINER_NAME}")
@@ -44,6 +54,7 @@ class UserTestKeywords:
             "create",
             username,
             role=role,
+            initial_balance_cents=initial_balance_cents,
             password=password,
         )
         self.usernames.append(username)
@@ -110,7 +121,14 @@ class UserTestKeywords:
         if not self.usernames:
             raise RuntimeError("There is no current test user to authenticate")
 
-        username = self.usernames[-1]
+        self.authenticate_test_user(self.usernames[-1])
+
+    @keyword
+    def authenticate_test_user(self, username: str) -> None:
+        """Log in a provisioned test user without exposing its password to Robot."""
+        if username not in self.passwords:
+            raise RuntimeError("The requested user is not a provisioned test user")
+
         password = self.passwords[username]
         base_url = BuiltIn().get_variable_value("${BASE_URL}")
         if not base_url:
@@ -204,6 +222,7 @@ print(jwt.encode(claims, get_jwt_secret(), algorithm="HS256"))
         username: str,
         role: str | None = None,
         password: str | None = None,
+        initial_balance_cents: int | None = None,
     ) -> None:
         command = [
             "docker",
@@ -219,6 +238,10 @@ print(jwt.encode(claims, get_jwt_secret(), algorithm="HS256"))
         ]
         if role is not None:
             command.extend(["--role", role])
+        if initial_balance_cents is not None:
+            command.extend(
+                ["--initial-balance-cents", str(initial_balance_cents)]
+            )
 
         result = subprocess.run(
             command,
