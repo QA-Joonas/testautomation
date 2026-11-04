@@ -100,6 +100,102 @@ Transaction Field Boundaries Are Accepted Across Create And Update
     Should Be Equal As Integers    ${update_response}[status_code]    200
     Transaction Response Should Match    ${update_response}[body]    x    1    expense    shopping
 
+SQL-Like Descriptions Are Stored As Literal Data
+    [Documentation]    Confirms quote and SQL operator characters in descriptions do not execute or alter other records.
+    [Tags]    security    injection    data-integrity
+    [Setup]    Set Up Transaction Test With Administrator Fixture
+    ${initial_id}=    Set Variable    ${TRANSACTION_ID}
+    ${sql_like_description}=    Set Variable    entry' OR '1'='1
+    ${create_body}=    Create Dictionary
+    ...    description=${sql_like_description}
+    ...    amount=${750}
+    ...    type=expense
+    ...    category=food
+    ${create_response}=    Request API    POST    ${TRANSACTIONS_PATH}    ${create_body}
+    Should Be Equal As Integers    ${create_response}[status_code]    201
+    ${created_id}=    Set Variable    ${create_response}[body][id]
+    Set Test Variable    ${TRANSACTION_ID}    ${created_id}
+    Should Be Equal    ${create_response}[body][description]    ${sql_like_description}
+    ${created_record}=    Request API    GET    ${TRANSACTIONS_PATH}/${created_id}
+    Should Be Equal As Integers    ${created_record}[status_code]    200
+    Should Be Equal    ${created_record}[body][description]    ${sql_like_description}
+    ${updated_description}=    Set Variable    changed' OR 1=1 --
+    ${update_body}=    Create Dictionary
+    ...    description=${updated_description}
+    ...    amount=${750}
+    ...    type=expense
+    ...    category=food
+    ${update_response}=    Request API    PUT    ${TRANSACTIONS_PATH}/${created_id}    ${update_body}
+    Should Be Equal As Integers    ${update_response}[status_code]    200
+    Should Be Equal    ${update_response}[body][description]    ${updated_description}
+    ${updated_record}=    Request API    GET    ${TRANSACTIONS_PATH}/${created_id}
+    Should Be Equal As Integers    ${updated_record}[status_code]    200
+    Should Be Equal    ${updated_record}[body][description]    ${updated_description}
+    ${original_record}=    Request API    GET    ${TRANSACTIONS_PATH}/${initial_id}
+    Should Be Equal As Integers    ${original_record}[status_code]    200
+    Transaction Response Should Match    ${original_record}[body]    Test transaction    1250    expense    food
+
+Transactions Reject Malformed JSON And Unsupported Content Types
+    [Documentation]    Confirms invalid JSON and non-JSON content types are rejected without create or update side effects.
+    [Tags]    negative    validation    security
+    [Setup]    Set Up Transaction Test With Administrator Fixture
+    ${before}=    Request API    GET    ${TRANSACTIONS_PATH}
+    Should Be Equal As Integers    ${before}[status_code]    200
+    ${before_ids}=    Evaluate    [item["id"] for item in $before["body"]]
+    ${valid_json}=    Set Variable    {"description":"Raw body","amount":1250,"type":"expense","category":"food"}
+    ${malformed_json}=    Set Variable    {"description":
+    ${malformed_create}=    ApiKeywords.Request Raw API
+    ...    POST    ${TRANSACTIONS_PATH}    ${malformed_json}    application/json
+    Validation Error Response Should Be Well Formed    ${malformed_create}
+    ${malformed_update}=    ApiKeywords.Request Raw API
+    ...    PUT    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}    ${malformed_json}    application/json
+    Validation Error Response Should Be Well Formed    ${malformed_update}
+    ${text_create}=    ApiKeywords.Request Raw API
+    ...    POST    ${TRANSACTIONS_PATH}    ${valid_json}    text/plain
+    Validation Error Response Should Be Well Formed    ${text_create}
+    ${text_update}=    ApiKeywords.Request Raw API
+    ...    PUT    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}    ${valid_json}    text/plain
+    Validation Error Response Should Be Well Formed    ${text_update}
+    ${after}=    Request API    GET    ${TRANSACTIONS_PATH}
+    Should Be Equal As Integers    ${after}[status_code]    200
+    ${after_ids}=    Evaluate    [item["id"] for item in $after["body"]]
+    Should Be Equal    ${after_ids}    ${before_ids}
+    ${unchanged}=    Request API    GET    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
+    Should Be Equal As Integers    ${unchanged}[status_code]    200
+    Transaction Response Should Match    ${unchanged}[body]    Test transaction    1250    expense    food
+
+Invalid Bearer Tokens Cannot Use Transaction CRUD
+    [Documentation]    Confirms malformed and expired tokens cannot list, read, create, update, or delete transactions.
+    [Tags]    negative    authentication    authorization    security
+    [Setup]    Set Up Transaction Test With Administrator Fixture
+    ${before}=    Request API    GET    ${TRANSACTIONS_PATH}
+    Should Be Equal As Integers    ${before}[status_code]    200
+    ${before_transactions}=    Set Variable    ${before}[body]
+    ${profile}=    Request API    GET    /api/v1/users/me
+    Should Be Equal As Integers    ${profile}[status_code]    200
+    ${user_id}=    Evaluate    str($profile["body"]["id"])
+    ${claims}=    Create Dictionary
+    ...    sub=${user_id}
+    ...    iss=testautomation-api
+    ...    iat=${0}
+    ...    exp=${1}
+    ${body}=    Create Dictionary
+    ...    description=Invalid token write
+    ...    amount=${2500}
+    ...    type=expense
+    ...    category=food
+    ApiKeywords.Set API Access Token    not-a-jwt
+    Invalid Token CRUD Requests Should Be Unauthorized    ${body}
+    Set API Token With Claims    ${claims}
+    Invalid Token CRUD Requests Should Be Unauthorized    ${body}
+    Authenticate Current Test User
+    ${after}=    Request API    GET    ${TRANSACTIONS_PATH}
+    Should Be Equal As Integers    ${after}[status_code]    200
+    Should Be Equal    ${after}[body]    ${before_transactions}
+    ${unchanged}=    Request API    GET    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
+    Should Be Equal As Integers    ${unchanged}[status_code]    200
+    Transaction Response Should Match    ${unchanged}[body]    Test transaction    1250    expense    food
+
 Transaction Can Be Retrieved By ID
     [Documentation]    Creates a transaction in setup, retrieves it by ID, and verifies its fields.
     [Tags]    smoke    happy-path
@@ -338,6 +434,20 @@ Validation Error Response Should Be Well Formed
         Should Not Contain    ${error_keys}    traceback
         Should Not Contain    ${error_keys}    stack
     END
+
+Invalid Token CRUD Requests Should Be Unauthorized
+    [Arguments]    ${body}
+    ${list_response}=    Request API    GET    ${TRANSACTIONS_PATH}
+    Error Response Should Match    ${list_response}    401    Authentication required
+    Should Be Equal    ${list_response}[www_authenticate]    Bearer
+    ${get_response}=    Request API    GET    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
+    Error Response Should Match    ${get_response}    401    Authentication required
+    ${create_response}=    Request API    POST    ${TRANSACTIONS_PATH}    ${body}
+    Error Response Should Match    ${create_response}    401    Authentication required
+    ${update_response}=    Request API    PUT    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}    ${body}
+    Error Response Should Match    ${update_response}    401    Authentication required
+    ${delete_response}=    Request API    DELETE    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
+    Error Response Should Match    ${delete_response}    401    Authentication required
 
 Set Up Transaction Test With Administrator Fixture
     Set Up Transaction Test User    administrator

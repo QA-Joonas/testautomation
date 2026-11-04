@@ -37,8 +37,10 @@ class ApiKeywords:
         method: str,
         path: str,
         body: Any | None = None,
+        raw_body: str | None = None,
+        content_type: str | None = None,
     ) -> dict[str, Any]:
-        """Send an HTTP request with an optional JSON payload and return its response.
+        """Send an HTTP request with an optional JSON or raw payload.
 
         An empty response body is returned as ``None``. Network errors and
         non-JSON response bodies are allowed to fail explicitly.
@@ -48,10 +50,16 @@ class ApiKeywords:
             if self.access_token is not None
             else None
         )
+        if content_type is not None:
+            if headers is None:
+                headers = {}
+            headers["Content-Type"] = content_type
+
         response = requests.request(
             method,
             f"{self.base_url}/{path.lstrip('/')}",
-            json=body,
+            json=body if raw_body is None else None,
+            data=raw_body,
             headers=headers,
             timeout=10,
         )
@@ -62,6 +70,22 @@ class ApiKeywords:
             "retry_after": response.headers.get("Retry-After"),
             "www_authenticate": response.headers.get("WWW-Authenticate"),
         }
+
+    @keyword
+    def request_raw_api(
+        self,
+        method: str,
+        path: str,
+        raw_body: str,
+        content_type: str,
+    ) -> dict[str, Any]:
+        """Send a raw request body with an explicit content type for parser tests."""
+        return self.request_api(
+            method,
+            path,
+            raw_body=raw_body,
+            content_type=content_type,
+        )
 
     @keyword
     def restart_docker_container(
