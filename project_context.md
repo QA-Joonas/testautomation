@@ -64,10 +64,7 @@ Administrators can list, create, read, update, and delete transactions across
 all customers. Every transaction endpoint requires authentication; the health
 and login endpoints are public.
 
-The API migrates legacy transactions without owners by deleting them when it
-first initializes the ownership schema. Existing `owner` and `read_only`
-accounts are both migrated to `user`, never to `administrator`. User deletion
-cascades to that user's transactions.
+Deleting a user cascades to that user's transactions.
 
 Run the API and test suite using the instructions in `README.md`.
 

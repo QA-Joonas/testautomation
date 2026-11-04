@@ -128,12 +128,6 @@ configured JWT secret, and the matching container name and API URL. Passwords
 and access tokens are kept inside the Python keyword library and are not passed
 through Robot test arguments or returned in Robot logs.
 
-The role migration converts existing `owner` and `read_only` accounts to
-`user`; no existing account is promoted to administrator. When the API first
-starts with the transaction ownership schema, pre-existing transactions
-without an owner are deleted rather than assigned to an arbitrary account.
-Later startups preserve users and owned transactions.
-
 ## Run the Robot Framework tests
 
 Install the test dependencies in the Python environment you intend to use:
