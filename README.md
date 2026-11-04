@@ -1,4 +1,4 @@
-# Test Automation Demo API
+# Test Automation API Demo
 
 A small FastAPI service for managing income and expense transactions, with
 Robot Framework tests that exercise the HTTP API.
