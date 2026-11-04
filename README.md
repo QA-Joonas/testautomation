@@ -50,10 +50,23 @@ python -m uvicorn app.main:app --reload
 Transaction request bodies contain `description`, `amount` (a positive integer
 number of cents), `type` (`income` or `expense`), and `category`. For example,
 `"amount": 1234` represents EUR 12.34. Responses use the same integer-cents
-representation; clients can format cents as euros for display. The API and
-SQLite both store amounts as integer cents, with no floating-point conversion.
-The API validates the fields and whether a category is valid for the selected
-type. Missing transaction IDs return `404`; invalid request data returns `422`.
+representation. A request example:
+
+```json
+{
+  "description": "Groceries",
+  "amount": 1234,
+  "type": "expense",
+  "category": "food"
+}
+```
+
+The API accepts and returns only integer cents; it does not accept a currency
+or an alternate euro-denominated amount. Clients can format the integer cents
+as euros for display. The API and SQLite store amounts as integer cents, with
+no floating-point conversion. The API validates the fields and whether a
+category is valid for the selected type. Missing transaction IDs return `404`;
+invalid request data returns `422`.
 
 ## Run the Robot Framework tests
 
