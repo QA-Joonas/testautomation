@@ -1,71 +1,70 @@
-"""In-memory throttling for repeated failed login attempts."""
+"""Database-backed throttling for repeated failed login attempts."""
 
-from collections import deque
+from collections.abc import Callable
 from math import ceil
-from threading import Lock
-from time import monotonic
+from time import time
 
+from app.database import get_connection
 
 FAILED_LOGIN_LIMIT = 2
 FAILED_LOGIN_WINDOW_SECONDS = 60 * 60
 
 
 class LoginRateLimiter:
-    """Track login attempts by client address and normalized username."""
+    """Track login attempts by client address and normalized username in SQLite."""
 
     def __init__(
         self,
         limit: int = FAILED_LOGIN_LIMIT,
         window_seconds: int = FAILED_LOGIN_WINDOW_SECONDS,
+        clock: Callable[[], float] = time,
     ) -> None:
         self.limit = limit
         self.window_seconds = window_seconds
-        self._attempts: dict[tuple[str, str], deque[float]] = {}
-        self._lock = Lock()
-        self._next_cleanup = 0.0
+        self._clock = clock
 
     def try_record_attempt(self, client_ip: str, username: str) -> int | None:
         """Record an allowed attempt, or return cooldown seconds when limited."""
-        key = (client_ip, username)
-        now = monotonic()
-        with self._lock:
-            if now >= self._next_cleanup:
-                self._remove_expired_keys(now)
-                self._next_cleanup = now + min(self.window_seconds, 60)
+        now = self._clock()
+        cutoff = now - self.window_seconds
 
-            attempts = self._attempts.get(key)
-            if attempts is not None:
-                self._remove_expired(attempts, now)
-                if not attempts:
-                    del self._attempts[key]
-                    attempts = None
+        with get_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM login_attempts WHERE attempted_at <= ?",
+                (cutoff,),
+            )
+            attempts = connection.execute(
+                """
+                SELECT COUNT(*) AS count, MIN(attempted_at) AS oldest
+                FROM login_attempts
+                WHERE client_ip = ? AND username = ? AND attempted_at > ?
+                """,
+                (client_ip, username, cutoff),
+            ).fetchone()
 
-            if attempts is None:
-                attempts = self._attempts.setdefault(key, deque())
-            elif len(attempts) >= self.limit:
+            if attempts["count"] >= self.limit:
                 return max(
                     1,
-                    ceil(attempts[0] + self.window_seconds - now),
+                    ceil(attempts["oldest"] + self.window_seconds - now),
                 )
 
-            attempts.append(now)
+            connection.execute(
+                """
+                INSERT INTO login_attempts (client_ip, username, attempted_at)
+                VALUES (?, ?, ?)
+                """,
+                (client_ip, username, now),
+            )
             return None
 
     def clear(self, client_ip: str, username: str) -> None:
         """Clear attempts after a successful login."""
-        with self._lock:
-            self._attempts.pop((client_ip, username), None)
-
-    def _remove_expired(self, attempts: deque[float], now: float) -> None:
-        cutoff = now - self.window_seconds
-        while attempts and attempts[0] <= cutoff:
-            attempts.popleft()
-
-    def _remove_expired_keys(self, now: float) -> None:
-        for key, attempts in list(self._attempts.items()):
-            self._remove_expired(attempts, now)
-            if not attempts:
-                del self._attempts[key]
+        with get_connection() as connection:
+            connection.execute(
+                "DELETE FROM login_attempts WHERE client_ip = ? AND username = ?",
+                (client_ip, username),
+            )
 
 
 login_rate_limiter = LoginRateLimiter()

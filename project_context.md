@@ -67,8 +67,11 @@ all customers. Every transaction endpoint requires authentication; the health
 and login endpoints are public.
 
 Login is throttled after two failed attempts per client IP and normalized
-username per hour. The in-memory limiter returns `429` with `Retry-After`;
-counters are per process and reset when it restarts.
+username in a rolling one-hour window. Attempt timestamps are stored in
+SQLite, return `429` with `Retry-After`, and are shared by API processes using
+the same database file. Successful login clears that pair's attempts; expired
+records are removed as login requests arrive. The state survives API container
+restarts when the database volume is retained.
 
 Deleting a user cascades to that user's transactions.
 

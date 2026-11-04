@@ -16,6 +16,8 @@ class UserTestKeywords:
 
     def __init__(self) -> None:
         self.usernames: list[str] = []
+        self.test_usernames: set[str] = set()
+        self.passwords: dict[str, str] = {}
         self.container_name: str | None = None
 
     @keyword
@@ -45,6 +47,8 @@ class UserTestKeywords:
             password=password,
         )
         self.usernames.append(username)
+        self.test_usernames.add(username)
+        self.passwords[username] = password
         self.container_name = container_name
 
         try:
@@ -69,6 +73,8 @@ class UserTestKeywords:
         except (requests.RequestException, ValueError, RuntimeError) as error:
             self._run_user_cli(container_name, "delete", username)
             self.usernames.remove(username)
+            self.test_usernames.discard(username)
+            self.passwords.pop(username, None)
             if not self.usernames:
                 self.container_name = None
             raise RuntimeError("Could not authenticate the provisioned test user") from error
@@ -78,17 +84,55 @@ class UserTestKeywords:
         """Delete all disposable users and clear the in-memory API token."""
         try:
             if self.container_name is not None:
+                container_name = self.container_name
                 while self.usernames:
                     username = self.usernames[-1]
                     self._run_user_cli(
-                        self.container_name,
+                        container_name,
                         "delete",
                         username,
                     )
                     self.usernames.pop()
+                if self.test_usernames:
+                    self._clear_login_attempts(
+                        container_name,
+                        self.test_usernames,
+                    )
+                    self.test_usernames.clear()
+                    self.passwords.clear()
                 self.container_name = None
         finally:
             BuiltIn().get_library_instance("ApiKeywords").set_api_access_token(None)
+
+    @keyword
+    def authenticate_current_test_user(self) -> None:
+        """Log in the newest fixture user without exposing its password to Robot."""
+        if not self.usernames:
+            raise RuntimeError("There is no current test user to authenticate")
+
+        username = self.usernames[-1]
+        password = self.passwords[username]
+        base_url = BuiltIn().get_variable_value("${BASE_URL}")
+        if not base_url:
+            raise RuntimeError("API base URL must be configured")
+
+        try:
+            response = requests.post(
+                f"{base_url.rstrip('/')}/api/v1/auth/login",
+                json={"username": username, "password": password},
+                timeout=10,
+            )
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"Test user login returned HTTP {response.status_code}"
+                )
+            access_token = response.json().get("access_token")
+            if not isinstance(access_token, str) or not access_token:
+                raise RuntimeError("Login response did not contain an access token")
+        except (requests.RequestException, ValueError, RuntimeError) as error:
+            raise RuntimeError("Could not authenticate the provisioned test user") from error
+
+        BuiltIn().get_library_instance("ApiKeywords").set_api_access_token(access_token)
 
     @keyword
     def delete_current_test_user_keep_api_token(self) -> None:
@@ -102,8 +146,6 @@ class UserTestKeywords:
             self.usernames[-1],
         )
         self.usernames.pop()
-        if not self.usernames:
-            self.container_name = None
 
     @keyword
     def set_api_token_with_claims(
@@ -194,6 +236,51 @@ print(jwt.encode(claims, get_jwt_secret(), algorithm="HS256"))
             created_user = json.loads(result.stdout)
             if created_user.get("username") != username:
                 raise RuntimeError("Private user provisioner returned an unexpected user")
+
+    @staticmethod
+    def _clear_login_attempts(
+        container_name: str,
+        usernames: set[str],
+    ) -> None:
+        script = """
+import sys
+from app.database import get_connection
+
+with get_connection() as connection:
+    for username in sys.argv[1:]:
+        connection.execute(
+            "DELETE FROM login_attempts WHERE username = ?",
+            (username,),
+        )
+"""
+        attempt_usernames = {
+            candidate
+            for username in usernames
+            for candidate in (
+                username,
+                f"missing_{username}",
+                username.ljust(50, "u"),
+            )
+        }
+        result = subprocess.run(
+            [
+                "docker",
+                "exec",
+                container_name,
+                "python",
+                "-c",
+                script,
+                *sorted(attempt_usernames),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Could not clear test login attempts: {result.stderr.strip()}"
+            )
 
 
 # Robot's file-based importer discovers the class by its module name.

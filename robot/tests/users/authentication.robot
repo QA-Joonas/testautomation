@@ -75,7 +75,7 @@ Login Accepts Credential Values At Their Length Limits
     [Documentation]    Maximum-length username and password values pass request validation.
     [Tags]    authentication    negative    validation
     ApiKeywords.Clear API Access Token
-    ${maximum_username}=    Evaluate    'u' * 50
+    ${maximum_username}=    Evaluate    $TEST_USERNAME.ljust(50, 'u')
     ${maximum_password}=    Evaluate    'p' * 128
     ${credentials}=    Create Dictionary
     ...    username=${maximum_username}
@@ -115,7 +115,7 @@ Login Rejects Invalid Credential Shapes
     Should Be Equal As Integers    ${short_username_response}[status_code]    422
 
 Login Limits Failed Attempts Per Client And Username
-    [Documentation]    Two invalid attempts are allowed per client/username pair; the next is throttled for one hour.
+    [Documentation]    Two invalid attempts per client/username pair remain throttled across an API container restart.
     [Tags]    authentication    negative    rate-limit    security
     ApiKeywords.Clear API Access Token
     ${wrong_password}=    Create Dictionary
@@ -135,9 +135,28 @@ Login Limits Failed Attempts Per Client And Username
     ${other_throttled}=    Request API    POST    /api/v1/auth/login    ${other_username}
     Should Be Equal As Integers    ${other_throttled}[status_code]    429
     Should Be True    3500 <= int($other_throttled["retry_after"]) <= 3600
+    Restart Docker Container    ${DOCKER_CONTAINER_NAME}
     ${throttled}=    Request API    POST    /api/v1/auth/login    ${wrong_password}
     Should Be Equal As Integers    ${throttled}[status_code]    429
     Should Be True    3500 <= int($throttled["retry_after"]) <= 3600
+
+Successful Login Clears Failed Attempts
+    [Documentation]    A successful login resets the pair's counter before the two-attempt limit is reached.
+    [Tags]    authentication    rate-limit    security
+    ApiKeywords.Clear API Access Token
+    ${wrong_password}=    Create Dictionary
+    ...    username=${TEST_USERNAME}
+    ...    password=deliberately-incorrect-password
+    ${first_failure}=    Request API    POST    /api/v1/auth/login    ${wrong_password}
+    Should Be Equal As Integers    ${first_failure}[status_code]    401
+    Authenticate Current Test User
+    ApiKeywords.Clear API Access Token
+    ${second_failure}=    Request API    POST    /api/v1/auth/login    ${wrong_password}
+    Should Be Equal As Integers    ${second_failure}[status_code]    401
+    ${third_failure}=    Request API    POST    /api/v1/auth/login    ${wrong_password}
+    Should Be Equal As Integers    ${third_failure}[status_code]    401
+    ${throttled}=    Request API    POST    /api/v1/auth/login    ${wrong_password}
+    Should Be Equal As Integers    ${throttled}[status_code]    429
 
 Current User Profile Requires Authentication
     [Documentation]    Requests without a bearer token are rejected.

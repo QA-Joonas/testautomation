@@ -111,10 +111,11 @@ hashed with Argon2id.
 
 Login allows two failed attempts per client IP and normalized username in a
 rolling one-hour window. Further requests for that pair receive `429` with a
-`Retry-After` header. Successful login clears the pair's recorded attempts.
-The limiter is in memory and applies per API process; its state is cleared
-when the process restarts and is not shared across multiple workers or
-replicas.
+`Retry-After` header. Attempt timestamps are stored in SQLite and shared by
+API processes that use the same database file. Successful login clears the
+pair's recorded attempts. The state survives API container restarts when the
+database volume is retained; expired records are removed as login requests
+arrive.
 
 The API requires `JWT_SECRET_KEY` to be configured with at least 32 random
 bytes before it will start. Keep the key private and stable across restarts so
@@ -134,6 +135,12 @@ These tests require the updated API image, a running container with the
 configured JWT secret, and the matching container name and API URL. Passwords
 and access tokens are kept inside the Python keyword library and are not passed
 through Robot test arguments or returned in Robot logs.
+
+The backend's focused limiter tests can be run from the `backend` directory:
+
+```powershell
+python -m unittest discover -s tests
+```
 
 ## Run the Robot Framework tests
 

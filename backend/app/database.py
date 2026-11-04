@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 import os
 import sqlite3
 from pathlib import Path
@@ -8,8 +10,9 @@ DEFAULT_DATABASE_PATH = BASE_DIR / "data" / "testautomation.db"
 DATABASE_PATH = Path(os.getenv("DATABASE_PATH", str(DEFAULT_DATABASE_PATH)))
 
 
-def get_connection() -> sqlite3.Connection:
-    """Create and return a connection to the SQLite database."""
+@contextmanager
+def get_connection() -> Iterator[sqlite3.Connection]:
+    """Yield a database connection and commit or roll back before closing it."""
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     connection = sqlite3.connect(
@@ -19,8 +22,15 @@ def get_connection() -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
-
-    return connection
+    try:
+        yield connection
+    except Exception:
+        connection.rollback()
+        raise
+    else:
+        connection.commit()
+    finally:
+        connection.close()
 
 
 def init_db() -> None:
@@ -120,6 +130,25 @@ def init_db() -> None:
             )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)"
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS login_attempts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    client_ip TEXT NOT NULL,
+                    username TEXT NOT NULL,
+                    attempted_at REAL NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_login_attempts_key_time
+                ON login_attempts(client_ip, username, attempted_at)
+                """
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(attempted_at)"
             )
             connection.commit()
         except Exception:
