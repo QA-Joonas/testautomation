@@ -36,9 +36,9 @@ class ApiKeywords:
         self,
         method: str,
         path: str,
-        body: dict[str, Any] | None = None,
+        body: Any | None = None,
     ) -> dict[str, Any]:
-        """Send an HTTP request and return its status code and decoded JSON body.
+        """Send an HTTP request with an optional JSON payload and return its response.
 
         An empty response body is returned as ``None``. Network errors and
         non-JSON response bodies are allowed to fail explicitly.
