@@ -3,6 +3,7 @@ Library    ../keywords/api_keywords.py
 
 *** Variables ***
 ${BASE_URL}                 http://localhost:8000
+${DOCKER_CONTAINER_NAME}    testautomation-robot-api
 ${HEALTH_PATH}              /health
 ${TRANSACTIONS_PATH}        /api/v1/transactions
 

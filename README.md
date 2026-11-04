@@ -18,7 +18,7 @@ Run these commands from the repository root. Docker Desktop must be running.
 ```powershell
 docker build -t testautomation-backend ./backend
 docker volume create testautomation-data
-docker run --rm --name testautomation-api -p 8000:8000 -e DATABASE_PATH=/data/testautomation.db -v testautomation-data:/data testautomation-backend
+docker run --rm --name testautomation-robot-api -p 8000:8000 -e DATABASE_PATH=/data/testautomation.db -v testautomation-data:/data testautomation-backend
 ```
 
 The named volume stores the SQLite database across container restarts. The API
@@ -71,6 +71,18 @@ listing, updating, and deletion. Retrieval, listing, updating, and deletion
 tests create their own transaction during test setup; test teardown removes
 transactions created by each test. The tests use the API rather than querying
 SQLite directly.
+
+The persistence test is tagged `persistence` and `docker`. It restarts the
+configured Docker container, so run it only when Docker is available and the
+container name and API URL match the running service. The default container name
+is `testautomation-robot-api`; override it when needed:
+
+```powershell
+python -m robot --variable DOCKER_CONTAINER_NAME:my-api-container --include persistence robot/tests
+```
+
+The test verifies persistence across an API container restart with the same
+database volume. It does not stop or restart Docker Desktop itself.
 
 The base URL can be changed without editing the resource file:
 

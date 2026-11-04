@@ -69,3 +69,12 @@ Transaction Can Be Deleted
     ${get_response}=    Request API    GET    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
     Should Be Equal As Integers    ${get_response}[status_code]    404
     Set Test Variable    ${TRANSACTION_ID}    ${EMPTY}
+
+Transaction Persists After Docker Container Restart
+    [Documentation]    Creates a transaction, restarts the configured API container, and verifies the transaction is still stored.
+    [Tags]    persistence    docker
+    [Setup]    Create Transaction For Test
+    Restart Docker Container    ${DOCKER_CONTAINER_NAME}
+    ${response}=    Request API    GET    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
+    Should Be Equal As Integers    ${response}[status_code]    200
+    Transaction Response Should Match    ${response}[body]    Test transaction    12.5    expense    food
