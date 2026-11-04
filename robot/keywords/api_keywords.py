@@ -92,3 +92,7 @@ class ApiKeywords:
             f"API at {self.base_url} did not become healthy after restarting "
             f"Docker container {container_name!r}"
         ) from last_error
+
+
+# Robot's file-based importer discovers the class by its module name.
+api_keywords = ApiKeywords

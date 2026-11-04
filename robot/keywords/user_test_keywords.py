@@ -118,3 +118,7 @@ class UserTestKeywords:
             created_user = json.loads(result.stdout)
             if created_user.get("username") != username:
                 raise RuntimeError("Private user provisioner returned an unexpected user")
+
+
+# Robot's file-based importer discovers the class by its module name.
+user_test_keywords = UserTestKeywords
