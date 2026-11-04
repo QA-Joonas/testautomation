@@ -17,14 +17,14 @@ Create Transaction For Test
     Reset Transaction State
     ${body}=    Create Dictionary
     ...    description=Test transaction
-    ...    amount=${12.5}
+    ...    amount=${1250}
     ...    type=expense
     ...    category=food
     ${response}=    Request API    POST    ${TRANSACTIONS_PATH}    ${body}
     Should Be Equal As Integers    ${response}[status_code]    201
     ${transaction}=    Set Variable    ${response}[body]
     Set Test Variable    ${TRANSACTION_ID}    ${transaction}[id]
-    Transaction Response Should Match    ${transaction}    Test transaction    12.5    expense    food
+    Transaction Response Should Match    ${transaction}    Test transaction    1250    expense    food
 
 Delete Transaction If Created
     [Documentation]    Deletes the current test's transaction if setup or the test created one.
@@ -37,7 +37,8 @@ Transaction Response Should Match
     [Arguments]    ${transaction}    ${description}    ${amount}    ${type}    ${category}
     [Documentation]    Verifies the transaction's business fields and that a creation timestamp is present.
     Should Be Equal    ${transaction}[description]    ${description}
-    Should Be Equal As Numbers    ${transaction}[amount]    ${amount}
+    Should Be True    isinstance($transaction["amount"], int)
+    Should Be Equal As Integers    ${transaction}[amount]    ${amount}
     Should Be Equal    ${transaction}[type]    ${type}
     Should Be Equal    ${transaction}[category]    ${category}
     Should Not Be Empty    ${transaction}[created_at]

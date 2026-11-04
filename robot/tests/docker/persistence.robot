@@ -13,4 +13,4 @@ Transaction Persists After Docker Container Restart
     Restart Docker Container    ${DOCKER_CONTAINER_NAME}
     ${response}=    Request API    GET    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
     Should Be Equal As Integers    ${response}[status_code]    200
-    Transaction Response Should Match    ${response}[body]    Test transaction    12.5    expense    food
+    Transaction Response Should Match    ${response}[body]    Test transaction    1250    expense    food

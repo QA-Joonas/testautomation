@@ -18,14 +18,25 @@ Transaction Can Be Created
     [Tags]    smoke    happy-path
     ${create_body}=    Create Dictionary
     ...    description=Monthly salary
-    ...    amount=${2500.0}
+    ...    amount=${250000}
     ...    type=income
     ...    category=salary
     ${create_response}=    Request API    POST    ${TRANSACTIONS_PATH}    ${create_body}
     Should Be Equal As Integers    ${create_response}[status_code]    201
     ${created}=    Set Variable    ${create_response}[body]
     Set Test Variable    ${TRANSACTION_ID}    ${created}[id]
-    Transaction Response Should Match    ${created}    Monthly salary    2500.0    income    salary
+    Transaction Response Should Match    ${created}    Monthly salary    250000    income    salary
+
+Fractional Transaction Amount Is Rejected
+    [Documentation]    Confirms amounts with fractional cents are rejected instead of rounded.
+    [Tags]    validation
+    ${body}=    Create Dictionary
+    ...    description=Fractional amount
+    ...    amount=${12.34}
+    ...    type=expense
+    ...    category=food
+    ${response}=    Request API    POST    ${TRANSACTIONS_PATH}    ${body}
+    Should Be Equal As Integers    ${response}[status_code]    422
 
 Transaction Can Be Retrieved By ID
     [Documentation]    Creates a transaction in setup, retrieves it by ID, and verifies its fields.
@@ -33,7 +44,7 @@ Transaction Can Be Retrieved By ID
     [Setup]    Create Transaction For Test
     ${response}=    Request API    GET    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
     Should Be Equal As Integers    ${response}[status_code]    200
-    Transaction Response Should Match    ${response}[body]    Test transaction    12.5    expense    food
+    Transaction Response Should Match    ${response}[body]    Test transaction    1250    expense    food
 
 Transaction Appears In The Transaction List
     [Documentation]    Creates a transaction in setup and confirms its ID appears in the list response.
@@ -50,15 +61,15 @@ Transaction Can Be Updated
     [Setup]    Create Transaction For Test
     ${update_body}=    Create Dictionary
     ...    description=Updated transaction
-    ...    amount=${48.25}
+    ...    amount=${4825}
     ...    type=expense
     ...    category=food
     ${update_response}=    Request API    PUT    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}    ${update_body}
     Should Be Equal As Integers    ${update_response}[status_code]    200
-    Transaction Response Should Match    ${update_response}[body]    Updated transaction    48.25    expense    food
+    Transaction Response Should Match    ${update_response}[body]    Updated transaction    4825    expense    food
     ${get_response}=    Request API    GET    ${TRANSACTIONS_PATH}/${TRANSACTION_ID}
     Should Be Equal As Integers    ${get_response}[status_code]    200
-    Transaction Response Should Match    ${get_response}[body]    Updated transaction    48.25    expense    food
+    Transaction Response Should Match    ${get_response}[body]    Updated transaction    4825    expense    food
 
 Transaction Can Be Deleted
     [Documentation]    Creates a transaction in setup, deletes it, and confirms it can no longer be retrieved.

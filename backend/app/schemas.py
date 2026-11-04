@@ -35,12 +35,12 @@ class TransactionCreate(BaseModel):
         Field(min_length=1, max_length=100, strict=True),
     ]
     amount: Annotated[
-        float,
+        int,
         Field(
             gt=0,
-            le=100000,
-            allow_inf_nan=False,
+            le=10_000_000,
             strict=True,
+            description="Transaction amount in integer cents.",
         ),
     ]
     type: TransactionType
@@ -110,8 +110,13 @@ class TransactionResponse(BaseModel):
     id: int
     description: str
     amount: Annotated[
-        float,
-        Field(gt=0, le=100000),
+        int,
+        Field(
+            gt=0,
+            le=10_000_000,
+            strict=True,
+            description="Transaction amount in integer cents.",
+        ),
     ]
     type: TransactionType
     category: TransactionCategory

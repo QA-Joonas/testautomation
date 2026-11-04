@@ -47,10 +47,13 @@ python -m uvicorn app.main:app --reload
 | `PUT` | `/api/v1/transactions/{transaction_id}` | Replace a transaction | `200` |
 | `DELETE` | `/api/v1/transactions/{transaction_id}` | Delete a transaction | `204` |
 
-Transaction request bodies contain `description`, `amount` (euros), `type`
-(`income` or `expense`), and `category`. The API validates the fields and
-whether a category is valid for the selected type. Missing transaction IDs
-return `404`; invalid request data returns `422`.
+Transaction request bodies contain `description`, `amount` (a positive integer
+number of cents), `type` (`income` or `expense`), and `category`. For example,
+`"amount": 1234` represents EUR 12.34. Responses use the same integer-cents
+representation; clients can format cents as euros for display. The API and
+SQLite both store amounts as integer cents, with no floating-point conversion.
+The API validates the fields and whether a category is valid for the selected
+type. Missing transaction IDs return `404`; invalid request data returns `422`.
 
 ## Run the Robot Framework tests
 
@@ -67,11 +70,11 @@ repository root. This runs the regular API tests and does not restart Docker:
 python -m robot robot/tests/api
 ```
 
-The current happy-path suite checks health, transaction creation, retrieval,
-listing, updating, and deletion. Retrieval, listing, updating, and deletion
-tests create their own transaction during test setup; test teardown removes
-transactions created by each test. The tests use the API rather than querying
-SQLite directly.
+The API suite checks health, transaction creation, retrieval, listing,
+updating, and deletion, and verifies fractional-cent amounts are rejected.
+Retrieval, listing, updating, and deletion tests create their own transaction
+during test setup; test teardown removes transactions created by each test.
+The tests use the API rather than querying SQLite directly.
 
 The persistence test is separate and must be run explicitly. It restarts the
 configured Docker container, so run it only when Docker is available and the

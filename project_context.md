@@ -28,6 +28,7 @@ The backend currently provides:
 - health check
 - transaction listing, creation, retrieval, update, and deletion
 - income and expense transaction validation
+- strict integer-cent transaction amounts in the API and SQLite database
 
 ## Testing
 
