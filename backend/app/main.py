@@ -3,8 +3,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Response, status
 
+from app.auth import get_jwt_secret
 from app.database import get_connection, init_db
 from app.schemas import TransactionCreate, TransactionResponse, TransactionUpdate
+from app.user_routes import router as user_router
 
 
 def transaction_from_row(row) -> TransactionResponse:
@@ -21,6 +23,7 @@ def transaction_from_row(row) -> TransactionResponse:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    get_jwt_secret()
     init_db()
     yield
 
@@ -30,6 +33,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+app.include_router(user_router)
 
 
 @app.get("/health")

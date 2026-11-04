@@ -14,11 +14,17 @@ class ApiKeywords:
 
     def __init__(self) -> None:
         self.base_url = "http://localhost:8000"
+        self.access_token: str | None = None
 
     @keyword
     def set_api_base_url(self, base_url: str) -> None:
         """Set the root URL used by subsequent API requests."""
         self.base_url = base_url.rstrip("/")
+
+    @keyword
+    def set_api_access_token(self, access_token: str | None) -> None:
+        """Set or clear the bearer token used by subsequent API requests."""
+        self.access_token = access_token
 
     @keyword
     def request_api(
@@ -32,10 +38,16 @@ class ApiKeywords:
         An empty response body is returned as ``None``. Network errors and
         non-JSON response bodies are allowed to fail explicitly.
         """
+        headers = (
+            {"Authorization": f"Bearer {self.access_token}"}
+            if self.access_token is not None
+            else None
+        )
         response = requests.request(
             method,
             f"{self.base_url}/{path.lstrip('/')}",
             json=body,
+            headers=headers,
             timeout=10,
         )
 

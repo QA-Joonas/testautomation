@@ -19,6 +19,11 @@ htmlcov/
 # IDE
 .vscode/
 
+# Local secrets and environment configuration
+.env
+.env.*
+!.env.example
+
 # OS
 .DS_Store
 Thumbs.db

@@ -15,12 +15,20 @@ Robot Framework tests that exercise the HTTP API.
 ## Run the API with Docker
 
 Run these commands from the repository root. Docker Desktop must be running.
+The API requires a private JWT signing key. Create the local environment file
+from the example, then replace its placeholder with a random value:
 
 ```powershell
+Copy-Item backend\.env.example backend\.env
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 docker build -t testautomation-backend ./backend
 docker volume create testautomation-data
-docker run --rm --name testautomation-robot-api -p 8000:8000 -e DATABASE_PATH=/data/testautomation.db -v testautomation-data:/data testautomation-backend
+docker run --rm --name testautomation-robot-api --env-file backend/.env -p 8000:8000 -e DATABASE_PATH=/data/testautomation.db -v testautomation-data:/data testautomation-backend
 ```
+
+Paste the generated key into `backend/.env` as the value of `JWT_SECRET_KEY`.
+The `.env` file is ignored by Git; do not commit real signing keys or passwords.
+The tracked `.env.example` contains only a placeholder.
 
 The named volume stores the SQLite database across container restarts. The API
 is available at `http://localhost:8000`; interactive OpenAPI documentation is
@@ -33,6 +41,7 @@ container stops.
 Alternatively, run the API locally from the `backend` directory:
 
 ```powershell
+$env:JWT_SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(48))"
 python -m uvicorn app.main:app --reload
 ```
 
@@ -46,6 +55,8 @@ python -m uvicorn app.main:app --reload
 | `GET` | `/api/v1/transactions/{transaction_id}` | Get a transaction | `200` |
 | `PUT` | `/api/v1/transactions/{transaction_id}` | Replace a transaction | `200` |
 | `DELETE` | `/api/v1/transactions/{transaction_id}` | Delete a transaction | `204` |
+| `POST` | `/api/v1/auth/login` | Authenticate a provisioned user | `200` |
+| `GET` | `/api/v1/users/me` | Get the authenticated user's profile | `200` |
 
 Transaction request bodies contain `description`, `amount` (a positive integer
 number of cents), `type` (`income` or `expense`), and `category`. For example,
@@ -67,6 +78,45 @@ as euros for display. The API and SQLite store amounts as integer cents, with
 no floating-point conversion. The API validates the fields and whether a
 category is valid for the selected type. Missing transaction IDs return `404`;
 invalid request data returns `422`.
+
+## Users and authentication
+
+There is no public registration endpoint. Create accounts through the private
+provisioning CLI inside the running API container; the password is read from
+standard input, not supplied as a command-line argument:
+
+```powershell
+docker exec -i testautomation-robot-api python -m app.users create --username alice --role owner
+```
+
+The supported roles are `owner` and `read_only`. The login endpoint accepts a
+JSON username and password and returns a short-lived (15-minute) JWT bearer
+token. Send it as `Authorization: Bearer <token>` to access
+`/api/v1/users/me`. User responses expose only the ID, username, role, and
+creation timestamp; password hashes are never returned. User passwords are
+hashed with Argon2id.
+
+The API requires `JWT_SECRET_KEY` to be configured with at least 32 random
+bytes before it will start. Keep the key private and stable across restarts so
+tokens remain verifiable. Changing the key invalidates existing tokens.
+
+The user happy-path tests privately create a disposable owner or read-only
+account inside the configured Docker container, log in, inspect the profile,
+and delete the account in teardown. Run them explicitly:
+
+```powershell
+python -m robot robot/tests/users
+```
+
+These tests require the updated API image, a running container with the
+configured JWT secret, and the matching container name and API URL. Passwords
+and access tokens are kept inside the Python keyword library and are not passed
+through Robot test arguments or returned in Robot logs.
+
+At this stage, authentication is implemented for the user profile endpoint;
+transaction endpoints are not yet protected or scoped to user ownership. That
+is the next authorization integration step. The health endpoint and login
+endpoint are intentionally available without a token.
 
 ## Run the Robot Framework tests
 

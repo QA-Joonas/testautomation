@@ -1,5 +1,5 @@
 *** Settings ***
-Library    ../keywords/api_keywords.py
+Library    ../keywords/api_keywords.py    WITH NAME    ApiKeywords
 
 *** Variables ***
 ${BASE_URL}                 http://localhost:8000
