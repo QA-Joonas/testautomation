@@ -73,3 +73,15 @@ def get_current_user(
     if user is None:
         raise unauthorized
     return dict(user)
+
+
+def require_administrator(
+    user: Annotated[dict[str, Any], Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Require an authenticated bank administrator."""
+    if user["role"] != "administrator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator role required",
+        )
+    return user

@@ -14,13 +14,13 @@ class UserTestKeywords:
     """Provision isolated users privately and authenticate without logging secrets."""
 
     def __init__(self) -> None:
-        self.username: str | None = None
+        self.usernames: list[str] = []
         self.container_name: str | None = None
 
     @keyword
     def create_and_authenticate_test_user(self, role: str) -> None:
         """Create a disposable user in Docker, log in, and keep credentials out of Robot logs."""
-        if role not in {"owner", "read_only"}:
+        if role not in {"user", "administrator"}:
             raise ValueError(f"Unsupported test user role: {role}")
 
         builtin = BuiltIn()
@@ -31,6 +31,11 @@ class UserTestKeywords:
 
         username = f"robot_{secrets.token_hex(8)}"
         password = secrets.token_urlsafe(24)
+        if self.container_name not in (None, container_name):
+            raise RuntimeError(
+                "Test users must be provisioned in the same container"
+            )
+
         self._run_user_cli(
             container_name,
             "create",
@@ -38,6 +43,8 @@ class UserTestKeywords:
             role=role,
             password=password,
         )
+        self.usernames.append(username)
+        self.container_name = container_name
 
         try:
             response = requests.post(
@@ -58,26 +65,29 @@ class UserTestKeywords:
             api_library.set_api_access_token(access_token)
             builtin.set_test_variable("${TEST_USERNAME}", username)
             builtin.set_test_variable("${TEST_USER_ROLE}", role)
-            self.username = username
-            self.container_name = container_name
         except (requests.RequestException, ValueError, RuntimeError) as error:
             self._run_user_cli(container_name, "delete", username)
+            self.usernames.remove(username)
+            if not self.usernames:
+                self.container_name = None
             raise RuntimeError("Could not authenticate the provisioned test user") from error
 
     @keyword
     def delete_test_user(self) -> None:
-        """Delete the current disposable user and clear the in-memory API token."""
+        """Delete all disposable users and clear the in-memory API token."""
         try:
-            if self.username is not None and self.container_name is not None:
-                self._run_user_cli(
-                    self.container_name,
-                    "delete",
-                    self.username,
-                )
+            if self.container_name is not None:
+                while self.usernames:
+                    username = self.usernames[-1]
+                    self._run_user_cli(
+                        self.container_name,
+                        "delete",
+                        username,
+                    )
+                    self.usernames.pop()
+                self.container_name = None
         finally:
             BuiltIn().get_library_instance("ApiKeywords").set_api_access_token(None)
-            self.username = None
-            self.container_name = None
 
     @staticmethod
     def _run_user_cli(

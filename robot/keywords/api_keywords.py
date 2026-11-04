@@ -27,6 +27,11 @@ class ApiKeywords:
         self.access_token = access_token
 
     @keyword
+    def clear_api_access_token(self) -> None:
+        """Remove the bearer token from subsequent API requests."""
+        self.access_token = None
+
+    @keyword
     def request_api(
         self,
         method: str,

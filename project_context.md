@@ -29,7 +29,9 @@ The backend currently provides:
 
 - health check
 - private user provisioning, password hashing, login, and JWT-protected profile
-- transaction listing, creation, retrieval, update, and deletion
+- authenticated transaction listing, creation, retrieval, update, and deletion
+- customer ownership; customers create/read their records and administrators
+  have cross-customer read and write access
 - income and expense transaction validation
 - strict integer-cent transaction amounts in the API and SQLite database; euro
   formatting is a client-side display concern
@@ -42,21 +44,21 @@ Robot Framework tests are organized under `robot/`:
 - `robot/resources/` contains shared variables and Robot Framework keywords.
 - `robot/keywords/` contains Python keyword libraries.
 
-The current tests cover happy paths for the health endpoint and transaction
-create, list, retrieve, update, and delete operations. Each test that needs an
-existing transaction creates one during setup and removes it during teardown.
-Tests exercise the HTTP API; they do not query SQLite directly.
+The current tests cover health and transaction CRUD, unauthenticated access,
+customer/administrator permissions, and transaction isolation between
+customers. Test users and their transactions are removed during teardown.
 
-User happy-path tests privately provision disposable owner and read-only users
-in the Docker container, authenticate, verify the protected user profile, and
-remove the users during teardown. JWT signing secrets belong in ignored local
-environment files, never in source control. The tests are in
-`robot/tests/users/`; provisioned passwords and access tokens are kept out of
-Robot test arguments and logs.
+User happy-path tests privately provision disposable customer and
+administrator accounts in the Docker container, authenticate, verify the
+protected user profile, and remove the accounts during teardown. JWT signing
+secrets belong in ignored local environment files, never in source control.
+The tests are in `robot/tests/users/`; provisioned passwords and access tokens
+are kept out of Robot test arguments and logs.
 
-Transaction endpoints are not yet authenticated or scoped to users. The next
-security step is to require authenticated ownership checks for transaction
-operations and role-based read-only restrictions.
+The API migrates legacy transactions without owners by deleting them when it
+first initializes the ownership schema. Existing `owner` and `read_only`
+accounts are both migrated to `user`, never to `administrator`. User deletion
+cascades to that user's transactions.
 
 Run the API and test suite using the instructions in `README.md`.
 

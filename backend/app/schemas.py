@@ -24,7 +24,7 @@ TransactionCategory = Literal[
     "other",
 ]
 
-UserRole = Literal["owner", "read_only"]
+UserRole = Literal["user", "administrator"]
 
 
 class UserCredentials(BaseModel):

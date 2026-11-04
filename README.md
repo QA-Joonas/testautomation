@@ -58,6 +58,13 @@ python -m uvicorn app.main:app --reload
 | `POST` | `/api/v1/auth/login` | Authenticate a provisioned user | `200` |
 | `GET` | `/api/v1/users/me` | Get the authenticated user's profile | `200` |
 
+Every transaction endpoint requires a bearer token. A `user` (customer) can
+create and read their own transactions, but cannot update or delete any
+transaction. An `administrator` can list, create, update, and delete
+transactions across all customers. Users cannot read another customer's
+transactions. Unauthenticated requests receive `401`; user attempts to update
+or delete receive `403`. The health and login endpoints are public.
+
 Transaction request bodies contain `description`, `amount` (a positive integer
 number of cents), `type` (`income` or `expense`), and `category`. For example,
 `"amount": 1234` represents EUR 12.34. Responses use the same integer-cents
@@ -86,12 +93,14 @@ provisioning CLI inside the running API container; the password is read from
 standard input, not supplied as a command-line argument:
 
 ```powershell
-docker exec -i testautomation-robot-api python -m app.users create --username alice --role owner
+docker exec -i testautomation-robot-api python -m app.users create --username alice --role user
 ```
 
-The supported roles are `owner` and `read_only`. The login endpoint accepts a
-JSON username and password and returns a short-lived (15-minute) JWT bearer
-token. Send it as `Authorization: Bearer <token>` to access
+The supported roles are `user` (customer) and `administrator` (bank
+administrator). Provision administrators only for trusted staff through the
+private CLI. The login endpoint accepts a JSON username and password and
+returns a short-lived (15-minute) JWT bearer token. Send it as
+`Authorization: Bearer <token>` to access
 `/api/v1/users/me`. User responses expose only the ID, username, role, and
 creation timestamp; password hashes are never returned. User passwords are
 hashed with Argon2id.
@@ -100,9 +109,12 @@ The API requires `JWT_SECRET_KEY` to be configured with at least 32 random
 bytes before it will start. Keep the key private and stable across restarts so
 tokens remain verifiable. Changing the key invalidates existing tokens.
 
-The user happy-path tests privately create a disposable owner or read-only
-account inside the configured Docker container, log in, inspect the profile,
-and delete the account in teardown. Run them explicitly:
+The user and transaction tests privately create disposable customer and
+administrator accounts inside the configured Docker container, log in, and
+delete those accounts in teardown. Deleting a test user also deletes its
+transactions. The transaction tests cover unauthenticated access, customer
+permissions, administrator CRUD, and isolation between customers. Run the
+user tests explicitly:
 
 ```powershell
 python -m robot robot/tests/users
@@ -113,10 +125,11 @@ configured JWT secret, and the matching container name and API URL. Passwords
 and access tokens are kept inside the Python keyword library and are not passed
 through Robot test arguments or returned in Robot logs.
 
-At this stage, authentication is implemented for the user profile endpoint;
-transaction endpoints are not yet protected or scoped to user ownership. That
-is the next authorization integration step. The health endpoint and login
-endpoint are intentionally available without a token.
+The role migration converts existing `owner` and `read_only` accounts to
+`user`; no existing account is promoted to administrator. When the API first
+starts with the transaction ownership schema, pre-existing transactions
+without an owner are deleted rather than assigned to an arbitrary account.
+Later startups preserve users and owned transactions.
 
 ## Run the Robot Framework tests
 
@@ -133,11 +146,10 @@ repository root. This runs the regular API tests and does not restart Docker:
 python -m robot robot/tests/api
 ```
 
-The API suite checks health, transaction creation, retrieval, listing,
-updating, and deletion, and verifies fractional-cent amounts are rejected.
-Retrieval, listing, updating, and deletion tests create their own transaction
-during test setup; test teardown removes transactions created by each test.
-The tests use the API rather than querying SQLite directly.
+The API suite checks health, transaction CRUD, fractional-cent validation,
+authentication requirements, customer/administrator permissions, and
+per-customer isolation. Tests make transaction requests through the HTTP API;
+test teardown removes disposable users and their transactions.
 
 The persistence test is separate and must be run explicitly. It restarts the
 configured Docker container, so run it only when Docker is available and the

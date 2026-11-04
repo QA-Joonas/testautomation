@@ -1,5 +1,6 @@
 *** Settings ***
 Library    ../keywords/api_keywords.py    WITH NAME    ApiKeywords
+Library    ../keywords/user_test_keywords.py
 
 *** Variables ***
 ${BASE_URL}                 http://localhost:8000
@@ -8,9 +9,29 @@ ${HEALTH_PATH}              /health
 ${TRANSACTIONS_PATH}        /api/v1/transactions
 
 *** Keywords ***
+Set Up Transaction Test User
+    [Arguments]    ${role}=user
+    Reset Transaction State
+    Create And Authenticate Test User    ${role}
+
+Set Up Transaction Test With Fixture
+    Set Up Transaction Test User
+    Create Transaction For Test
+
+Set Up Unauthenticated Transaction Test
+    Reset Transaction State
+    ApiKeywords.Clear API Access Token
+
+Clean Up Transaction Test
+    IF    $TEST_USER_ROLE == 'administrator'
+        Delete Transaction If Created
+    END
+    Delete Test User
+
 Reset Transaction State
     [Documentation]    Initializes the per-test transaction ID so teardown can safely detect created data.
     Set Test Variable    ${TRANSACTION_ID}    ${EMPTY}
+    Set Test Variable    ${TEST_USER_ROLE}    ${EMPTY}
 
 Create Transaction For Test
     [Documentation]    Creates a standard expense transaction and stores its ID for the current test.

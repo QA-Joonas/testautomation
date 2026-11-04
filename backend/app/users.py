@@ -18,7 +18,7 @@ def main() -> None:
     create_parser.add_argument("--username", required=True)
     create_parser.add_argument(
         "--role",
-        choices=("owner", "read_only"),
+        choices=("user", "administrator"),
         required=True,
     )
 
